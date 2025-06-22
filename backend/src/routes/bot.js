@@ -3,6 +3,18 @@ const BotController = require('../controllers/botController');
 
 const router = express.Router();
 
+// Webhook для Telegram бота
+router.post('/webhook', async (req, res) => {
+  try {
+    const { bot } = require('../bot');
+    await bot.handleUpdate(req.body);
+    res.status(200).send('OK');
+  } catch (error) {
+    console.error('Ошибка webhook:', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
 // Регистрация сотрудника через бота
 router.post('/register', BotController.registerEmployee);
 
