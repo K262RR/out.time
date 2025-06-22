@@ -2,8 +2,47 @@ require('dotenv').config();
 const app = require('./src/app');
 const { bot } = require('./src/bot');
 const CronService = require('./src/services/cronService');
+const checkDatabaseConnection = require('./check-db-connection');
+const fs = require('fs');
+const path = require('path');
+const { Pool } = require('pg');
 
 const PORT = process.env.PORT || 3000;
+
+// Функция для запуска миграций
+async function runMigrations() {
+  const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  });
+
+  try {
+    console.log('🔄 Проверка и запуск миграций базы данных...');
+
+    // Читаем файл миграции
+    const migrationPath = path.join(__dirname, 'migrations', '001_initial_schema.sql');
+    if (fs.existsSync(migrationPath)) {
+      const migrationSQL = fs.readFileSync(migrationPath, 'utf8');
+
+      // Выполняем миграцию (если таблицы уже существуют - будет ошибка, но это нормально)
+      await pool.query(migrationSQL);
+      console.log('✅ Миграции успешно выполнены');
+    } else {
+      console.log('⚠️ Файл миграции не найден, пропускаем');
+    }
+
+  } catch (error) {
+    // Если ошибка связана с тем, что таблицы уже существуют - это нормально
+    if (error.code === '42P07') {
+      console.log('ℹ️ Таблицы базы данных уже существуют');
+    } else {
+      console.error('❌ Ошибка выполнения миграций:', error.message);
+      throw error;
+    }
+  } finally {
+    await pool.end();
+  }
+}
 
 async function startServer() {
   try {
@@ -12,13 +51,23 @@ async function startServer() {
     // Проверяем обязательные переменные окружения
     const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET', 'BOT_TOKEN'];
     const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
-    
+
     if (missingVars.length > 0) {
       console.error('❌ Отсутствуют обязательные переменные окружения:');
       missingVars.forEach(varName => console.error(`   - ${varName}`));
       console.error('\n💡 Создайте файл .env с необходимыми переменными');
       process.exit(1);
     }
+
+    // Проверяем подключение к базе данных
+    const dbConnected = await checkDatabaseConnection();
+    if (!dbConnected) {
+      console.error('❌ Не удается подключиться к базе данных');
+      process.exit(1);
+    }
+
+    // Запускаем миграции базы данных
+    await runMigrations();
 
     // Запускаем API сервер
     const server = app.listen(PORT, () => {
@@ -42,10 +91,10 @@ async function startServer() {
     // Graceful shutdown
     const gracefulShutdown = (signal) => {
       console.log(`\n📡 Получен сигнал ${signal}, останавливаем сервер...`);
-      
+
       bot.stop(signal);
       console.log('✅ Telegram бот остановлен');
-      
+
       server.close(() => {
         console.log('✅ API сервер остановлен');
         console.log('👋 Сервер успешно завершен');
@@ -63,7 +112,7 @@ async function startServer() {
     console.log('   ✅ Telegram бот');
     console.log('   ✅ Планировщик уведомлений');
     console.log('   ✅ База данных PostgreSQL');
-    
+
     if (process.env.NODE_ENV === 'development') {
       console.log('\n🧪 Режим разработки активен');
       console.log('💡 Для тестирования используйте:');
