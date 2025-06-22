@@ -11,8 +11,9 @@ services:
     name: outtime-backend
     runtime: node
     plan: free
-    buildCommand: npm install && cd backend && npm install
-    startCommand: cd backend && npm start
+    rootDir: ./backend
+    buildCommand: npm install
+    startCommand: npm start
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
@@ -37,8 +38,9 @@ services:
     name: outtime-frontend
     runtime: static
     plan: free
-    buildCommand: npm install && cd frontend && npm install && npm run build
-    staticPublishPath: ./frontend/dist
+    rootDir: ./frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
     routes:
       - type: rewrite
         source: /*

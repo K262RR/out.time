@@ -6,7 +6,7 @@ async function checkDatabaseConnection() {
 
   if (!process.env.DATABASE_URL) {
     console.error('❌ DATABASE_URL не установлен');
-    process.exit(1);
+    return false;
   }
 
   const pool = new Pool({
