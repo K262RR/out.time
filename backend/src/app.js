@@ -14,19 +14,29 @@ app.use(helmet());
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5173',
-  'http://localhost:5174', 
+  'http://localhost:5174',
   'http://localhost:5175',
   process.env.FRONTEND_URL
 ].filter(Boolean);
+
+// Добавляем поддержку всех Vercel доменов
+const isVercelDomain = (origin) => {
+  return origin && (
+    origin.endsWith('.vercel.app') ||
+    origin.endsWith('.vercel.com')
+  );
+};
 
 app.use(cors({
   origin: function (origin, callback) {
     // Разрешаем запросы без origin (например, мобильные приложения)
     if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
+
+    // Проверяем разрешенные origins или Vercel домены
+    if (allowedOrigins.indexOf(origin) !== -1 || isVercelDomain(origin)) {
       callback(null, true);
     } else {
+      console.log('CORS blocked origin:', origin);
       callback(new Error('Не разрешено CORS политикой'));
     }
   },
@@ -52,8 +62,8 @@ app.use((req, res, next) => {
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
+  res.json({
+    status: 'OK',
     timestamp: new Date().toISOString(),
     service: 'OutTime Backend'
   });
@@ -72,16 +82,16 @@ app.use('/api/settings', require('./routes/settings'));
 
 // Обработка 404
 app.use('*', (req, res) => {
-  res.status(404).json({ 
+  res.status(404).json({
     error: 'Маршрут не найден',
-    path: req.originalUrl 
+    path: req.originalUrl
   });
 });
 
 // Глобальная обработка ошибок
 app.use((err, req, res, next) => {
   console.error('Ошибка сервера:', err);
-  
+
   // Ошибки валидации
   if (err.name === 'ValidationError') {
     return res.status(400).json({
@@ -89,14 +99,14 @@ app.use((err, req, res, next) => {
       details: err.message
     });
   }
-  
+
   // Ошибки базы данных
   if (err.code === '23505') { // Duplicate key
     return res.status(400).json({
       error: 'Данные уже существуют'
     });
   }
-  
+
   // Общая ошибка сервера
   res.status(500).json({
     error: 'Внутренняя ошибка сервера',
