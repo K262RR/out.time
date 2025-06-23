@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npx vite build",
+    "build": "vite build",
     "build:fallback": "node_modules/.bin/vite build",
     "build:debug": "node build-debug.js",
     "preview": "vite preview",
