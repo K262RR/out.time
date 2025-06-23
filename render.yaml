@@ -30,7 +30,7 @@ services:
     runtime: static
     plan: free
     rootDir: ./frontend
-    buildCommand: npm install && npx vite build --config vite.config.production.js
+    buildCommand: npm install && npm run build
     staticPublishPath: ./dist
     routes:
       - type: rewrite
