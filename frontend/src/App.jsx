@@ -1,7 +1,9 @@
 import React from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import useAuth from './hooks/useAuth'
 import { Toaster } from 'react-hot-toast'
+
+import useAuth from './hooks/useAuth'
+
 import Layout from './components/layout/Layout'
 import Dashboard from './pages/Dashboard'
 import Employees from './pages/Employees'
@@ -13,40 +15,39 @@ import Register from './pages/Register'
 import Help from './pages/Help'
 import Faq from './pages/Faq'
 
-function App() {
-  const { isAuthenticated } = useAuth()
+function PrivateRoute({ children }) {
+  const { user, loading } = useAuth()
+  if (loading) return <div>Загрузка...</div>
+  return user ? children : <Navigate to="/login" />
+}
 
+function App() {
   return (
     <>
-      <Toaster position="top-right" />
+      <Toaster position="top-center" reverseOrder={false} />
       <Routes>
+        {/* Public routes */}
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+
+        {/* Private routes */}
         <Route 
-          path="/login" 
+          path="/*" 
           element={
-            isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />
-          } 
-        />
-        <Route 
-          path="/register" 
-          element={
-            isAuthenticated ? <Navigate to="/dashboard" replace /> : <Register />
-          } 
-        />
-        
-        {isAuthenticated ? (
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Navigate to="/dashboard" replace />} />
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="employees" element={<Employees />} />
-            <Route path="employees/:id" element={<EmployeeDetail />} />
-            <Route path="reports" element={<Reports />} />
-            <Route path="settings" element={<Settings />} />
-            <Route path="help" element={<Help />} />
-            <Route path="faq" element={<Faq />} />
-          </Route>
-        ) : (
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        )}
+            <PrivateRoute>
+              <Layout />
+            </PrivateRoute>
+          }
+        >
+          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="employees" element={<Employees />} />
+          <Route path="employees/:id" element={<EmployeeDetail />} />
+          <Route path="reports" element={<Reports />} />
+          <Route path="settings" element={<Settings />} />
+          <Route path="faq" element={<Faq />} />
+          <Route path="help" element={<Help />} />
+          <Route path="*" element={<Navigate to="/dashboard" />} />
+        </Route>
       </Routes>
     </>
   )

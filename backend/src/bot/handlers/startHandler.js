@@ -1,4 +1,12 @@
-const fetch = require('node-fetch');
+// Используем встроенный fetch или импортируем node-fetch
+let fetch;
+if (typeof globalThis.fetch === 'undefined') {
+  fetch = require('node-fetch');
+} else {
+  fetch = globalThis.fetch;
+}
+
+import statusHandler from './statusHandler.js';
 
 async function startHandler(ctx) {
   try {
@@ -10,7 +18,20 @@ async function startHandler(ctx) {
     if (startPayload) {
       try {
         // Проверяем валидность токена
-        const validateResponse = await fetch(`${process.env.API_BASE_URL || 'http://localhost:3000'}/api/bot/validate-invite/${startPayload}`);
+        const validateUrl = `${process.env.API_BASE_URL || 'http://localhost:3000'}/api/bot/validate-invite/${startPayload}`;
+        console.log(`🔍 Bot: Validating invite token at URL: ${validateUrl}`);
+        const validateResponse = await fetch(validateUrl);
+        
+        if (!validateResponse.ok) {
+          throw new Error(`HTTP ${validateResponse.status}: ${validateResponse.statusText}`);
+        }
+        
+        const validateContentType = validateResponse.headers.get('content-type');
+        if (!validateContentType || !validateContentType.includes('application/json')) {
+          const textResponse = await validateResponse.text();
+          throw new Error(`Получен не JSON ответ при валидации: ${textResponse.substring(0, 100)}...`);
+        }
+        
         const validateData = await validateResponse.json();
 
         if (!validateData.success) {
@@ -29,6 +50,16 @@ async function startHandler(ctx) {
             invite_token: startPayload
           })
         });
+
+        if (!registerResponse.ok) {
+          throw new Error(`HTTP ${registerResponse.status}: ${registerResponse.statusText}`);
+        }
+        
+        const registerContentType = registerResponse.headers.get('content-type');
+        if (!registerContentType || !registerContentType.includes('application/json')) {
+          const textResponse = await registerResponse.text();
+          throw new Error(`Получен не JSON ответ при регистрации: ${textResponse.substring(0, 100)}...`);
+        }
 
         const registerData = await registerResponse.json();
 
@@ -52,7 +83,7 @@ async function startHandler(ctx) {
           // Показываем текущий статус
           setTimeout(() => {
             ctx.telegram.sendMessage(ctx.chat.id, 'Проверим ваш сегодняшний статус...');
-            require('./statusHandler')(ctx);
+            statusHandler(ctx);
           }, 2000);
 
         } else {
@@ -67,7 +98,22 @@ async function startHandler(ctx) {
     } else {
       // Проверяем, зарегистрирован ли уже пользователь
       try {
-        const statusResponse = await fetch(`${process.env.API_BASE_URL || 'http://localhost:3000'}/api/bot/status/${telegramId}`);
+        const statusUrl = `${process.env.API_BASE_URL || 'http://localhost:3000'}/api/bot/status/${telegramId}`;
+        console.log(`🔍 Bot: Checking status for user ${telegramId} at URL: ${statusUrl}`);
+        const statusResponse = await fetch(statusUrl);
+        
+        // Проверяем, что ответ в формате JSON
+        console.log(`📊 Bot: Status response - Status: ${statusResponse.status}, StatusText: ${statusResponse.statusText}`);
+        if (!statusResponse.ok) {
+          throw new Error(`HTTP ${statusResponse.status}: ${statusResponse.statusText}`);
+        }
+        
+        const statusContentType = statusResponse.headers.get('content-type');
+        if (!statusContentType || !statusContentType.includes('application/json')) {
+          const textResponse = await statusResponse.text();
+          throw new Error(`Получен не JSON ответ: ${textResponse.substring(0, 100)}...`);
+        }
+        
         const statusData = await statusResponse.json();
 
         if (statusData.success) {
@@ -83,7 +129,7 @@ async function startHandler(ctx) {
 
           // Показываем текущий статус
           setTimeout(() => {
-            require('./statusHandler')(ctx);
+            statusHandler(ctx);
           }, 1000);
 
         } else {
@@ -116,4 +162,4 @@ async function startHandler(ctx) {
   }
 }
 
-module.exports = startHandler; 
+export default startHandler; 

@@ -1,42 +1,51 @@
-const jwt = require('jsonwebtoken');
+import jwt from 'jsonwebtoken';
+import { v4 as uuidv4 } from 'uuid';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+export const JWT_ACCESS_EXPIRATION = '15m';
+export const JWT_REFRESH_EXPIRATION = '7d';
 
-const generateToken = (payload) => {
-  return jwt.sign(payload, JWT_SECRET, { 
-    expiresIn: JWT_EXPIRES_IN,
-    issuer: 'outtime-api'
+export const generateAuthTokens = (user, deviceInfo = '') => {
+  const tokenPayload = {
+    userId: user.id,
+    email: user.email,
+    company_id: user.company_id || user.companyId,
+    jti: uuidv4(),
+    deviceInfo
+  };
+
+  const accessToken = jwt.sign(tokenPayload, process.env.JWT_ACCESS_SECRET, {
+    expiresIn: JWT_ACCESS_EXPIRATION
   });
+
+  const refreshToken = jwt.sign(tokenPayload, process.env.JWT_REFRESH_SECRET, {
+    expiresIn: JWT_REFRESH_EXPIRATION
+  });
+
+  return { accessToken, refreshToken };
 };
 
-const verifyToken = (token) => {
+export const verifyToken = (token, type = 'access') => {
   try {
-    return jwt.verify(token, JWT_SECRET);
+    const secret = type === 'access' ? process.env.JWT_ACCESS_SECRET : process.env.JWT_REFRESH_SECRET;
+    return jwt.verify(token, secret);
   } catch (error) {
-    throw new Error('Недействительный токен');
+    throw new Error(`Invalid ${type} token: ${error.message}`);
   }
 };
 
-const generateAuthTokens = (user) => {
-  const payload = {
-    userId: user.id,
-    email: user.email,
-    companyId: user.company_id || user.companyId,
-    iat: Math.floor(Date.now() / 1000)
+export const parseTimeToSeconds = (timeString) => {
+  const units = {
+    s: 1,
+    m: 60,
+    h: 3600,
+    d: 86400
   };
 
-  const accessToken = generateToken(payload);
-  
-  return {
-    accessToken,
-    tokenType: 'Bearer',
-    expiresIn: JWT_EXPIRES_IN
-  };
-};
+  const match = timeString.match(/^(\d+)([smhd])$/);
+  if (!match) {
+    throw new Error('Invalid time format');
+  }
 
-module.exports = {
-  generateToken,
-  verifyToken,
-  generateAuthTokens
+  const [, value, unit] = match;
+  return parseInt(value) * units[unit];
 }; 

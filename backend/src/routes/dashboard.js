@@ -1,6 +1,6 @@
-const express = require('express');
-const DashboardController = require('../controllers/dashboardController');
-const { authenticateToken } = require('../middleware/auth');
+import express from 'express';
+import * as DashboardController from '../controllers/dashboardController.js';
+import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -19,4 +19,4 @@ router.get('/quick-actions', DashboardController.getQuickActions);
 // Уведомления
 router.get('/notifications', DashboardController.getNotifications);
 
-module.exports = router; 
+export default router; 

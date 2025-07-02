@@ -1,14 +1,35 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const swaggerUi = require('swagger-ui-express');
-const swaggerSpec = require('./config/swagger');
+import 'dotenv/config';
+import express from 'express';
+import cors from 'cors';
+import swaggerUi from 'swagger-ui-express';
+import swaggerSpec from './config/swagger.js';
+import logger from './config/logger.js';
+import ApiError from './utils/ApiError.js';
+import { apiLimiter, authLimiter, botLimiter, publicLimiter } from './middleware/rateLimiter.js';
+import securityHeaders from './middleware/securityHeaders.js';
+import publicRoutes from './routes/public.js';
+import authRoutes from './routes/auth.js';
+import employeeRoutes from './routes/employees.js';
+import reportRoutes from './routes/reports.js';
+import dashboardRoutes from './routes/dashboard.js';
+import botRoutes from './routes/bot.js';
+import settingsRoutes from './routes/settings.js';
 
 const app = express();
 
-// Middleware для безопасности
-app.use(helmet());
+// Применяем расширенные настройки безопасности
+securityHeaders().forEach(middleware => app.use(middleware));
+
+// Принудительный редирект на HTTPS в production
+if (process.env.NODE_ENV === 'production') {
+  app.use((req, res, next) => {
+    if (req.header('x-forwarded-proto') !== 'https') {
+      res.redirect(`https://${req.header('host')}${req.url}`);
+    } else {
+      next();
+    }
+  });
+}
 
 // CORS настройки
 const allowedOrigins = [
@@ -16,7 +37,8 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5174', 
   'http://localhost:5175',
-  process.env.FRONTEND_URL
+  process.env.FRONTEND_URL,
+  process.env.FRONTEND_URL?.replace('http://', 'https://')
 ].filter(Boolean);
 
 app.use(cors({
@@ -33,6 +55,9 @@ app.use(cors({
   credentials: true
 }));
 
+// Rate limiting - применяется ко всем API запросам
+app.use('/api', apiLimiter);
+
 // Парсинг body
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
@@ -44,9 +69,21 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
   customSiteTitle: 'Out Time API Documentation'
 }));
 
-// Логирование запросов
+// Оптимизированное логирование запросов (только в dev режиме для консоли)
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  // Логируем только важные запросы, исключаем health check и статические файлы
+  if (req.url !== '/health' && !req.url.startsWith('/api-docs')) {
+    if (process.env.NODE_ENV === 'development') {
+      const timestamp = new Date().toISOString();
+      console.log(`[${timestamp}] ${req.method} ${req.originalUrl} - ${req.ip}`);
+    }
+    // Structured logging для production
+    logger.info(`${req.method} ${req.originalUrl}`, { 
+      ip: req.ip, 
+      userAgent: req.get('User-Agent'),
+      timestamp: new Date().toISOString()
+    });
+  }
   next();
 });
 
@@ -59,19 +96,19 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Публичные API маршруты (без аутентификации)
-app.use('/api/public', require('./routes/public'));
+// Публичные API маршруты (без аутентификации) - с ограниченным rate limiting
+app.use('/api/public', publicLimiter, publicRoutes);
 
 // Защищенные API маршруты
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/employees', require('./routes/employees'));
-app.use('/api/reports', require('./routes/reports'));
-app.use('/api/dashboard', require('./routes/dashboard'));
-app.use('/api/bot', require('./routes/bot'));
-app.use('/api/settings', require('./routes/settings'));
+app.use('/api/auth', authLimiter, authRoutes);
+app.use('/api/employees', employeeRoutes);
+app.use('/api/reports', reportRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/bot', botLimiter, botRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Обработка 404
-app.use('*', (req, res) => {
+app.use((req, res, next) => {
   res.status(404).json({ 
     error: 'Маршрут не найден',
     path: req.originalUrl 
@@ -80,28 +117,29 @@ app.use('*', (req, res) => {
 
 // Глобальная обработка ошибок
 app.use((err, req, res, next) => {
-  console.error('Ошибка сервера:', err);
+  let { statusCode, message } = err;
   
-  // Ошибки валидации
-  if (err.name === 'ValidationError') {
-    return res.status(400).json({
-      error: 'Ошибка валидации данных',
-      details: err.message
+  // Если это не наша предвиденная ошибка, логируем ее как критическую
+  if (!(err instanceof ApiError)) {
+    statusCode = 500;
+    message = 'Внутренняя ошибка сервера';
+    logger.error('Unhandled Error', { 
+      message: err.message, 
+      stack: err.stack, 
+      path: req.path,
+      method: req.method
     });
+  } else {
+     logger.warn('Handled Error', { statusCode, message, path: req.path });
   }
-  
-  // Ошибки базы данных
-  if (err.code === '23505') { // Duplicate key
-    return res.status(400).json({
-      error: 'Данные уже существуют'
-    });
-  }
-  
-  // Общая ошибка сервера
-  res.status(500).json({
-    error: 'Внутренняя ошибка сервера',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'Что-то пошло не так'
-  });
+
+  const response = {
+    error: message,
+    ...err.data,
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+  };
+
+  res.status(statusCode || 500).json(response);
 });
 
-module.exports = app; 
+export default app; 

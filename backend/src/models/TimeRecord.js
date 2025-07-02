@@ -1,4 +1,4 @@
-const pool = require('../config/database');
+import sequelize from '../config/database.js';
 
 class TimeRecord {
   static async create(data) {
@@ -8,14 +8,22 @@ class TimeRecord {
       RETURNING *
     `;
     const values = [data.employeeId, data.date, data.startTime, data.status || 'work'];
-    const result = await pool.query(query, values);
-    return result.rows[0];
+    const [result] = await sequelize.query(query, { 
+      bind: values,
+      type: sequelize.QueryTypes.INSERT,
+      raw: true
+    });
+    return result;
   }
 
   static async findByEmployeeAndDate(employeeId, date) {
     const query = 'SELECT * FROM time_records WHERE employee_id = $1 AND date = $2';
-    const result = await pool.query(query, [employeeId, date]);
-    return result.rows[0];
+    const [result] = await sequelize.query(query, { 
+      bind: [employeeId, date],
+      type: sequelize.QueryTypes.SELECT,
+      raw: true
+    });
+    return result;
   }
 
   static async findByEmployeeAndDateRange(employeeId, startDate, endDate) {
@@ -29,8 +37,12 @@ class TimeRecord {
     const start = new Date(startDate).toISOString().split('T')[0];
     const end = new Date(endDate).toISOString().split('T')[0];
     
-    const result = await pool.query(query, [employeeId, start, end]);
-    return result.rows;
+    const result = await sequelize.query(query, { 
+      bind: [employeeId, start, end],
+      type: sequelize.QueryTypes.SELECT,
+      raw: true
+    });
+    return result;
   }
 
   static async updateEndTime(employeeId, date, endTime) {
@@ -40,8 +52,12 @@ class TimeRecord {
       WHERE employee_id = $1 AND date = $2
       RETURNING *
     `;
-    const result = await pool.query(query, [employeeId, date, endTime]);
-    return result.rows[0];
+    const [result] = await sequelize.query(query, { 
+      bind: [employeeId, date, endTime],
+      type: sequelize.QueryTypes.UPDATE,
+      raw: true
+    });
+    return result;
   }
 
   static async updateStatus(employeeId, date, status) {
@@ -51,8 +67,12 @@ class TimeRecord {
       WHERE employee_id = $1 AND date = $2
       RETURNING *
     `;
-    const result = await pool.query(query, [employeeId, date, status]);
-    return result.rows[0];
+    const [result] = await sequelize.query(query, { 
+      bind: [employeeId, date, status],
+      type: sequelize.QueryTypes.UPDATE,
+      raw: true
+    });
+    return result;
   }
 
   static async findByCompanyAndDate(companyId, date) {
@@ -63,30 +83,48 @@ class TimeRecord {
       WHERE e.company_id = $1 AND tr.date = $2
       ORDER BY e.name
     `;
-    const result = await pool.query(query, [companyId, date]);
-    return result.rows;
+    const result = await sequelize.query(query, { 
+      bind: [companyId, date],
+      type: sequelize.QueryTypes.SELECT,
+      raw: true
+    });
+    return result;
   }
 
   static async getCompanyStats(companyId, date) {
+    // Оптимизированный запрос с использованием CTE и индексов
     const query = `
+      WITH employee_stats AS (
+        SELECT 
+          e.id,
+          tr.start_time,
+          tr.end_time,
+          tr.status,
+          CASE 
+            WHEN tr.start_time IS NOT NULL AND tr.end_time IS NOT NULL 
+            THEN EXTRACT(EPOCH FROM (tr.end_time - tr.start_time))/3600 
+            WHEN tr.start_time IS NOT NULL 
+            THEN EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - tr.start_time))/3600
+            ELSE NULL 
+          END as work_hours
+        FROM employees e
+        LEFT JOIN time_records tr ON e.id = tr.employee_id AND tr.date = $2
+        WHERE e.company_id = $1 AND e.is_active = true
+      )
       SELECT 
-        COUNT(DISTINCT e.id) as total_employees,
-        COUNT(DISTINCT CASE WHEN tr.start_time IS NOT NULL THEN e.id END) as working_today,
-        COUNT(DISTINCT CASE WHEN tr.status = 'sick' THEN e.id END) as sick_today,
-        COUNT(DISTINCT CASE WHEN tr.status = 'vacation' THEN e.id END) as vacation_today,
-        AVG(CASE 
-          WHEN tr.start_time IS NOT NULL AND tr.end_time IS NOT NULL 
-          THEN EXTRACT(EPOCH FROM (tr.end_time - tr.start_time))/3600 
-          WHEN tr.start_time IS NOT NULL 
-          THEN EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - tr.start_time))/3600
-          ELSE NULL 
-        END) as avg_work_hours
-      FROM employees e
-      LEFT JOIN time_records tr ON e.id = tr.employee_id AND tr.date = $2
-      WHERE e.company_id = $1 AND e.is_active = true
+        COUNT(*) as total_employees,
+        COUNT(CASE WHEN start_time IS NOT NULL THEN 1 END) as working_today,
+        COUNT(CASE WHEN status = 'sick' THEN 1 END) as sick_today,
+        COUNT(CASE WHEN status = 'vacation' THEN 1 END) as vacation_today,
+        COALESCE(ROUND(AVG(work_hours)::numeric, 1), 0) as avg_work_hours
+      FROM employee_stats
     `;
-    const result = await pool.query(query, [companyId, date]);
-    return result.rows[0];
+    const [result] = await sequelize.query(query, { 
+      bind: [companyId, date],
+      type: sequelize.QueryTypes.SELECT,
+      raw: true
+    });
+    return result;
   }
 
   static async findLateToday(companyId) {
@@ -104,9 +142,13 @@ class TimeRecord {
         AND tr.status = 'work'
         AND tr.start_time::time > c.morning_notification_time;
     `;
-    const result = await pool.query(query, [companyId]);
-    return result.rows;
+    const result = await sequelize.query(query, { 
+      bind: [companyId],
+      type: sequelize.QueryTypes.SELECT,
+      raw: true
+    });
+    return result;
   }
 }
 
-module.exports = TimeRecord; 
+export default TimeRecord; 

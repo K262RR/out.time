@@ -1,8 +1,28 @@
-const express = require('express');
-const AuthController = require('../controllers/authController');
-const { authenticateToken } = require('../middleware/auth');
+import express from 'express';
+import rateLimit from 'express-rate-limit';
+import * as AuthController from '../controllers/authController.js';
+import { authenticateToken } from '../middleware/auth.js';
+import validate from '../middleware/validate.js';
+import { registerSchema, loginSchema, changePasswordSchema } from '../validators/authValidator.js';
+import logger from '../config/logger.js';
 
 const router = express.Router();
+
+// Ограничитель для эндпоинта входа
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 минут
+  max: 5, // 5 запросов
+  message: 'Слишком много попыток входа с этого IP, попробуйте снова через 15 минут.',
+  standardHeaders: true, // Возвращать информацию о лимитах в заголовках `RateLimit-*`
+  legacyHeaders: false, // Отключить заголовки `X-RateLimit-*`
+  keyGenerator: (req, res) => req.ip, // Используем IP пользователя
+  handler: (req, res, next, options) => {
+    // Логируем событие превышения лимита
+    logger.warn(`Rate limit exceeded for login attempt from IP: ${req.ip}`);
+    res.status(options.statusCode).send(options.message);
+  },
+  trustProxy: 1 // Доверяем первому прокси (например, nginx)
+});
 
 /**
  * @swagger
@@ -51,7 +71,8 @@ const router = express.Router();
  *         description: Ошибка валидации или email уже существует
  */
 router.post('/register', 
-  AuthController.validateRegister, 
+  registerSchema,
+  validate,
   AuthController.register
 );
 
@@ -91,28 +112,50 @@ router.post('/register',
  *                   type: string
  *       401:
  *         description: Неверные учетные данные
+ *       429:
+ *         description: Слишком много запросов
  */
 router.post('/login', 
-  AuthController.validateLogin, 
+  loginLimiter,
+  loginSchema, 
+  validate,
   AuthController.login
 );
 
-// Обновление токена (требует авторизации)
+// Обновление токена (НЕ требует авторизации, так как access токен может быть истекшим)
 router.post('/refresh', 
-  authenticateToken, 
   AuthController.refreshToken
 );
 
 // Смена пароля (требует авторизации)
 router.post('/change-password', 
   authenticateToken, 
+  changePasswordSchema,
+  validate,
   AuthController.changePassword
 );
 
 // Выход из системы
 router.post('/logout', 
-  authenticateToken, 
   AuthController.logout
+);
+
+// Выход со всех устройств
+router.post('/logout-all', 
+  authenticateToken, 
+  AuthController.logoutAllDevices
+);
+
+// Получение активных сессий
+router.get('/sessions', 
+  authenticateToken, 
+  AuthController.getActiveSessions
+);
+
+// Отзыв конкретной сессии
+router.delete('/sessions/:sessionId', 
+  authenticateToken, 
+  AuthController.revokeSession
 );
 
 /**
@@ -141,4 +184,4 @@ router.get('/me',
   AuthController.me
 );
 
-module.exports = router; 
+export default router; 

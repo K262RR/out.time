@@ -4,15 +4,21 @@
   "description": "Out Time - Система учета рабочего времени",
   "private": true,
   "scripts": {
-    "dev": "concurrently \"cd backend && pnpm dev\" \"cd frontend && pnpm dev\"",
+    "dev": "pnpm --parallel run dev",
     "dev:backend": "cd backend && pnpm dev",
     "dev:frontend": "cd frontend && pnpm dev",
-    "build": "cd frontend && pnpm build",
+    "build": "pnpm --filter ./frontend build",
     "build:deploy": "./build-script.sh",
     "install:all": "pnpm install --filter backend && pnpm install --filter frontend",
-    "start": "cd backend && pnpm start"
+    "start": "pnpm --filter ./backend start"
   },
-  "keywords": ["nodejs", "react", "postgresql", "telegram-bot", "time-tracking"],
+  "keywords": [
+    "nodejs",
+    "react",
+    "postgresql",
+    "telegram-bot",
+    "time-tracking"
+  ],
   "author": "Outcasts",
   "license": "ISC",
   "packageManager": "pnpm@10.12.1",
@@ -21,6 +27,14 @@
     "frontend"
   ],
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "prettier": "^3.0.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "path-to-regexp": "6.2.1"
+    }
+  },
+  "dependencies": {
+    "dotenv": "16.5.0"
   }
-} 
+}

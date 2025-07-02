@@ -1,7 +1,7 @@
-const TimeRecord = require('../models/TimeRecord');
-const Report = require('../models/Report');
-const Employee = require('../models/Employee');
-const DashboardService = require('../services/dashboardService');
+import TimeRecord from '../models/TimeRecord.js';
+import Report from '../models/Report.js';
+import Employee from '../models/Employee.js';
+import * as DashboardService from '../services/dashboardService.js';
 
 class DashboardController {
   static async getDashboardData(req, res) {
@@ -159,4 +159,4 @@ class DashboardController {
   }
 }
 
-module.exports = DashboardController; 
+export default DashboardController; 

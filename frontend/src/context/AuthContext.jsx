@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect } from 'react'
+import React, { createContext, useState, useEffect, useCallback, useMemo } from 'react'
 import api from '../services/api'
 
 export const AuthContext = createContext(null)
@@ -13,16 +13,22 @@ export function AuthProvider({ children }) {
     const storedUser = localStorage.getItem('user');
 
     if (token && storedUser) {
-      api.defaults.headers.common['Authorization'] = `Bearer ${token}`
-      setUser(JSON.parse(storedUser));
-      setIsAuthenticated(true);
-      // We can still verify with the server in the background if needed
-      // checkAuth(); 
+      try {
+        api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+        setUser(JSON.parse(storedUser));
+        setIsAuthenticated(true);
+        // We can still verify with the server in the background if needed
+        // checkAuth(); 
+      } catch (error) {
+        console.error('Ошибка парсинга данных пользователя:', error);
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      }
     }
     setLoading(false)
   }, [])
 
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
     // This function can be used to verify the token with the server,
     // but the initial state is now set synchronously from localStorage.
     try {
@@ -36,9 +42,9 @@ export function AuthProvider({ children }) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  const login = async (email, password) => {
+  const login = useCallback(async (email, password) => {
     try {
       const response = await api.post('/auth/login', { email, password })
       const { accessToken, user } = response.data
@@ -55,17 +61,17 @@ export function AuthProvider({ children }) {
       console.error('Login failed:', error.response || error)
       throw error
     }
-  }
+  }, [])
 
-  const logout = () => {
+  const logout = useCallback(() => {
     localStorage.removeItem('token')
     localStorage.removeItem('user');
     delete api.defaults.headers.common['Authorization']
     setUser(null)
     setIsAuthenticated(false)
-  }
+  }, [])
 
-  const register = async (companyName, email, password) => {
+  const register = useCallback(async (companyName, email, password) => {
     try {
       const response = await api.post('/auth/register', {
         companyName,
@@ -86,41 +92,50 @@ export function AuthProvider({ children }) {
       console.error('Registration failed:', error.response || error)
       throw error
     }
-  }
+  }, [])
 
-  const updateUser = (updatedUserData) => {
+  const updateUser = useCallback((updatedUserData) => {
     setUser(prevUser => {
       const newUser = { ...prevUser, ...updatedUserData };
       localStorage.setItem('user', JSON.stringify(newUser));
       return newUser;
     });
-  };
+  }, []);
 
-  const updateUserCompany = (companyName) => {
-    if (user) {
-        const updatedUser = { ...user, company: { ...user.company, name: companyName } };
-        setUser(updatedUser);
+  const updateUserCompany = useCallback((companyName) => {
+    setUser(prevUser => {
+      if (prevUser) {
+        const updatedUser = { ...prevUser, company: { ...prevUser.company, name: companyName } };
         localStorage.setItem('user', JSON.stringify(updatedUser));
-    }
-  };
+        return updatedUser;
+      }
+      return prevUser;
+    });
+  }, []);
 
-  const value = {
+  // Мемоизируем value объект для предотвращения ненужных re-renders
+  const value = useMemo(() => ({
     isAuthenticated,
     user,
     loading,
     login,
     logout,
     register,
-    updateUserCompany
-  }
+    updateUser,
+    updateUserCompany,
+    checkAuth
+  }), [isAuthenticated, user, loading, login, logout, register, updateUser, updateUserCompany, checkAuth])
+
+  // Мемоизируем loading компонент
+  const loadingComponent = useMemo(() => (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
+    </div>
+  ), [])
 
   // The loading screen is now simpler as we don't need to wait for checkAuth
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
-      </div>
-    )
+    return loadingComponent
   }
 
   return (

@@ -1,59 +1,45 @@
-const Report = require('../models/Report');
+const ReportService = require('../services/reportService');
 const ExcelJS = require('exceljs');
+const Report = require('../models/Report'); // Оставляем для экспорта
+const logger = require('../config/logger');
 
 class ReportController {
   static async getReports(req, res) {
     try {
       const companyId = req.user.companyId;
-      const { 
-        startDate, 
-        endDate, 
-        employeeId, 
-        page = 1, 
-        limit = 20 
-      } = req.query;
+      const { startDate, endDate, employeeId, page, limit } = req.query;
 
-      // Валидация дат
-      const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]; // 30 дней назад
-      const end = endDate || new Date().toISOString().split('T')[0]; // сегодня
+      const result = await ReportService.getReports(companyId, {
+        startDate,
+        endDate,
+        employeeId,
+        page,
+        limit,
+      });
 
-      // Получаем отчеты
-      const reports = await Report.findByCompanyAndDateRange(
-        companyId, 
-        start, 
-        end, 
-        employeeId ? parseInt(employeeId) : null
-      );
-
-      // Пагинация
-      const offset = (parseInt(page) - 1) * parseInt(limit);
-      const paginatedReports = reports.slice(offset, offset + parseInt(limit));
+      // Маппим поля для совместимости с frontend
+      const mappedReports = result.reports.map(report => ({
+        id: report.id,
+        employeeId: report.employee_id,
+        employeeName: report.employee_name,
+        content: report.content,
+        date: report.date,
+        createdAt: report.created_at,
+        updatedAt: report.updated_at,
+        telegramId: report.telegram_id
+      }));
 
       res.json({
-        reports: paginatedReports.map(report => ({
-          id: report.id,
-          employeeName: report.employee_name,
-          employeeId: report.employee_id,
-          content: report.content,
-          date: report.date,
-          createdAt: report.created_at
-        })),
-        pagination: {
-          currentPage: parseInt(page),
-          totalPages: Math.ceil(reports.length / parseInt(limit)),
-          totalReports: reports.length,
-          hasNext: offset + parseInt(limit) < reports.length,
-          hasPrev: parseInt(page) > 1
-        },
+        reports: mappedReports,
+        pagination: result.pagination,
         filters: {
-          startDate: start,
-          endDate: end,
+          startDate: startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          endDate: endDate || new Date().toISOString().split('T')[0],
           employeeId: employeeId || null
         }
       });
-
     } catch (error) {
-      console.error('Ошибка получения отчетов:', error.message);
+      logger.error('Ошибка получения отчетов', { companyId: req.user.companyId, query: req.query, error: error.message });
       res.status(500).json({
         error: 'Ошибка сервера при получении отчетов'
       });
@@ -120,7 +106,7 @@ class ReportController {
       res.end();
 
     } catch (error) {
-      console.error('Ошибка экспорта отчетов:', error.message);
+      logger.error('Ошибка экспорта отчетов', { companyId: req.user.companyId, query: req.query, error: error.message });
       res.status(500).json({
         error: 'Ошибка сервера при экспорте отчетов'
       });
@@ -182,7 +168,7 @@ class ReportController {
       });
 
     } catch (error) {
-      console.error('Ошибка получения статистики отчетов:', error.message);
+      logger.error('Ошибка получения статистики отчетов', { companyId: req.user.companyId, query: req.query, error: error.message });
       res.status(500).json({
         error: 'Ошибка сервера при получении статистики отчетов'
       });
@@ -228,7 +214,7 @@ class ReportController {
       });
 
     } catch (error) {
-      console.error('Ошибка получения отчета:', error.message);
+      logger.error('Ошибка получения отчета', { reportId: req.params.id, companyId: req.user.companyId, error: error.message });
       res.status(500).json({
         error: 'Ошибка сервера при получении отчета'
       });

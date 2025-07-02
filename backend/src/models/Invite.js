@@ -1,95 +1,198 @@
-const pool = require('../config/database');
-const { v4: uuidv4 } = require('uuid');
+import { DataTypes, Model } from 'sequelize';
+import { v4 as uuidv4 } from 'uuid';
+import sequelize from '../config/database.js';
 
-class Invite {
+class Invite extends Model {
   static async create(data) {
     const token = uuidv4();
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7); // Истекает через 7 дней
+    expiresAt.setDate(expiresAt.getDate() + 7); // Expires in 7 days
 
-    const query = `
-      INSERT INTO invites (company_id, token, employee_name, expires_at)
-      VALUES ($1, $2, $3, $4)
-      RETURNING *
-    `;
-    const values = [data.companyId, token, data.employeeName, expiresAt];
-    const result = await pool.query(query, values);
-    return result.rows[0];
+    return await Invite.create({
+      companyId: data.companyId,
+      token,
+      employeeName: data.employeeName,
+      expiresAt,
+      isUsed: false
+    });
   }
 
   static async findByToken(token) {
-    const query = `
-      SELECT i.*, c.name as company_name 
-      FROM invites i
-      JOIN companies c ON i.company_id = c.id
-      WHERE i.token = $1
-    `;
-    const result = await pool.query(query, [token]);
-    return result.rows[0];
+    return await Invite.findOne({
+      where: { token },
+      include: [{
+        model: sequelize.models.Company,
+        attributes: ['name'],
+        as: 'company'
+      }]
+    });
   }
 
   static async findValidByToken(token) {
-    const query = `
-      SELECT i.*, c.name as company_name 
-      FROM invites i
-      JOIN companies c ON i.company_id = c.id
-      WHERE i.token = $1 AND i.is_used = false AND i.expires_at > CURRENT_TIMESTAMP
-    `;
-    const result = await pool.query(query, [token]);
-    return result.rows[0];
+    const now = new Date();
+    return await Invite.findOne({
+      where: {
+        token,
+        isUsed: false,
+        expiresAt: {
+          [sequelize.Op.gt]: now
+        }
+      },
+      include: [{
+        model: sequelize.models.Company,
+        attributes: ['name'],
+        as: 'company'
+      }]
+    });
   }
 
   static async markAsUsed(token) {
-    const query = `
-      UPDATE invites 
-      SET is_used = true, used_at = CURRENT_TIMESTAMP 
-      WHERE token = $1
-      RETURNING *
-    `;
-    const result = await pool.query(query, [token]);
-    return result.rows[0];
+    const invite = await Invite.findOne({ where: { token } });
+    if (invite) {
+      invite.isUsed = true;
+      invite.usedAt = new Date();
+      await invite.save();
+      return invite;
+    }
+    return null;
   }
 
   static async findByCompany(companyId) {
-    const query = `
-      SELECT * FROM invites 
-      WHERE company_id = $1 
-      ORDER BY created_at DESC
-    `;
-    const result = await pool.query(query, [companyId]);
-    return result.rows;
+    return await Invite.findAll({
+      where: { companyId },
+      order: [['createdAt', 'DESC']]
+    });
   }
 
   static async findActiveByCompany(companyId) {
-    const query = `
-      SELECT * FROM invites 
-      WHERE company_id = $1 AND is_used = false AND expires_at > CURRENT_TIMESTAMP
-      ORDER BY created_at DESC
-    `;
-    const result = await pool.query(query, [companyId]);
-    return result.rows;
+    const now = new Date();
+    return await Invite.findAll({
+      where: {
+        companyId,
+        isUsed: false,
+        expiresAt: {
+          [sequelize.Op.gt]: now
+        }
+      },
+      order: [['createdAt', 'DESC']]
+    });
   }
 
   static async cleanupExpired() {
-    const query = `
-      DELETE FROM invites 
-      WHERE expires_at < CURRENT_TIMESTAMP AND is_used = false
-      RETURNING *
-    `;
-    const result = await pool.query(query);
-    return result.rows;
+    const now = new Date();
+    return await Invite.destroy({
+      where: {
+        expiresAt: {
+          [sequelize.Op.lt]: now
+        },
+        isUsed: false
+      }
+    });
   }
 
   static async revoke(token) {
-    const query = `
-      UPDATE invites 
-      SET is_used = true, used_at = CURRENT_TIMESTAMP 
-      WHERE token = $1 AND is_used = false
-      RETURNING *
-    `;
-    const result = await pool.query(query, [token]);
-    return result.rows[0];
+    const invite = await Invite.findOne({
+      where: {
+        token,
+        isUsed: false
+      }
+    });
+    if (invite) {
+      invite.isUsed = true;
+      invite.usedAt = new Date();
+      await invite.save();
+      return invite;
+    }
+    return null;
+  }
+
+  static async revokeByName(companyId, employeeName) {
+    const now = new Date();
+    const invites = await Invite.findAll({
+      where: {
+        companyId,
+        employeeName,
+        isUsed: false,
+        expiresAt: {
+          [sequelize.Op.gt]: now
+        }
+      }
+    });
+
+    for (const invite of invites) {
+      invite.isUsed = true;
+      invite.usedAt = new Date();
+      await invite.save();
+    }
+
+    return invites;
   }
 }
 
-module.exports = Invite; 
+Invite.init({
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
+  companyId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    field: 'company_id',
+    references: {
+      model: 'companies',
+      key: 'id'
+    }
+  },
+  token: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    unique: true
+  },
+  employeeName: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    field: 'employee_name'
+  },
+  expiresAt: {
+    type: DataTypes.DATE,
+    allowNull: false,
+    field: 'expires_at'
+  },
+  isUsed: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false,
+    field: 'is_used'
+  },
+  usedAt: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    field: 'used_at'
+  },
+  createdAt: {
+    type: DataTypes.DATE,
+    allowNull: false,
+    defaultValue: DataTypes.NOW,
+    field: 'created_at'
+  },
+  updatedAt: {
+    type: DataTypes.DATE,
+    allowNull: false,
+    defaultValue: DataTypes.NOW,
+    field: 'updated_at'
+  }
+}, {
+  sequelize,
+  modelName: 'Invite',
+  tableName: 'invites',
+  timestamps: true
+});
+
+// Define associations
+Invite.belongsTo(sequelize.models.Company, {
+  foreignKey: 'companyId',
+  as: 'company'
+});
+
+export default Invite; 

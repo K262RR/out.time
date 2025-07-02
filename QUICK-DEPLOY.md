@@ -17,6 +17,135 @@ pnpm run build:deploy
 - Создайте PostgreSQL базу данных
 - Запишите данные подключения
 
+### 2.3 Настройка SSL/HTTPS
+
+#### 2.3.1 Установка Certbot
+```bash
+# Ubuntu/Debian
+sudo apt update
+sudo apt install -y certbot python3-certbot-nginx
+
+# CentOS/RHEL
+sudo dnf install -y certbot python3-certbot-nginx
+
+# macOS
+brew install certbot
+```
+
+#### 2.3.2 Получение SSL сертификата
+```bash
+# Получение сертификата с автоматической настройкой nginx
+sudo certbot --nginx -d your-domain.com
+
+# Если нужно добавить поддомены
+sudo certbot --nginx -d your-domain.com -d www.your-domain.com -d api.your-domain.com
+```
+
+#### 2.3.3 Настройка автоматического обновления
+```bash
+# Проверка статуса автообновления
+sudo systemctl status certbot.timer
+
+# Тестовое обновление (dry-run)
+sudo certbot renew --dry-run
+
+# Настройка автоматического обновления (если не настроено)
+sudo systemctl enable certbot.timer
+sudo systemctl start certbot.timer
+```
+
+#### 2.3.4 Проверка конфигурации
+```bash
+# Проверка конфигурации nginx
+sudo nginx -t
+
+# Перезапуск nginx после изменений
+sudo systemctl restart nginx
+
+# Проверка статуса
+sudo systemctl status nginx
+```
+
+#### 2.3.5 Обновление переменных окружения
+```bash
+# Создание .env файла из примера
+cp env.production.example .env
+
+# Обновление переменных (используйте свой редактор)
+nano .env
+
+# Проверка прав доступа
+chmod 600 .env
+```
+
+Необходимые изменения в .env:
+```env
+# Обязательные SSL переменные
+DOMAIN=https://your-domain.com
+SSL_CERT_PATH=/etc/letsencrypt/live/your-domain.com/fullchain.pem
+SSL_KEY_PATH=/etc/letsencrypt/live/your-domain.com/privkey.pem
+SSL_CHAIN_PATH=/etc/letsencrypt/live/your-domain.com/chain.pem
+WEBHOOK_SECRET=your_secure_random_string_here
+
+# Обновите URL для HTTPS
+FRONTEND_URL=https://your-domain.com
+API_BASE_URL=https://your-domain.com
+```
+
+#### 2.3.6 Проверка безопасности
+
+1. **Базовые проверки:**
+   ```bash
+   # Проверка редиректа
+   curl -I http://your-domain.com
+   
+   # Проверка HTTPS
+   curl -I https://your-domain.com
+   
+   # Проверка SSL сертификата
+   openssl s_client -connect your-domain.com:443 -servername your-domain.com
+   ```
+
+2. **SSL Labs тест:**
+   - Откройте https://www.ssllabs.com/ssltest/
+   - Введите ваш домен
+   - Дождитесь результатов теста (обычно 2-3 минуты)
+   - Убедитесь, что оценка A или A+
+
+3. **Проверка заголовков безопасности:**
+   ```bash
+   curl -I https://your-domain.com | grep -i "strict\|content\|frame\|xss\|sniff"
+   ```
+
+#### 2.3.7 Устранение проблем
+
+1. **Сертификат не обновляется:**
+   ```bash
+   # Проверка логов
+   sudo certbot certificates
+   sudo tail -f /var/log/letsencrypt/letsencrypt.log
+   ```
+
+2. **Проблемы с nginx:**
+   ```bash
+   # Проверка ошибок
+   sudo nginx -t
+   sudo tail -f /var/log/nginx/error.log
+   ```
+
+3. **SSL не работает:**
+   ```bash
+   # Проверка прав доступа
+   sudo ls -la /etc/letsencrypt/live/
+   sudo ls -la /etc/letsencrypt/archive/
+   ```
+
+⚠️ **Важные моменты:**
+1. Сохраните резервную копию сертификатов
+2. Настройте мониторинг срока действия сертификатов
+3. Регулярно проверяйте оценку SSL Labs
+4. Обновляйте конфигурацию nginx при изменении требований безопасности
+
 ## 3. Загрузка файлов
 
 ### 3.1 Распакуйте архив

@@ -51,7 +51,7 @@ const confirmReportKeyboard = {
   }
 };
 
-module.exports = {
+export {
   morningKeyboard,
   eveningKeyboard,
   statusKeyboard,

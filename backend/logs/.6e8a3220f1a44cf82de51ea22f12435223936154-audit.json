@@ -1,0 +1,30 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "/Users/outcasts/Documents/out.time/backend/logs/.6e8a3220f1a44cf82de51ea22f12435223936154-audit.json",
+    "files": [
+        {
+            "date": 1750623913752,
+            "name": "/Users/outcasts/Documents/out.time/backend/logs/error-2025-06-22.log",
+            "hash": "2ad7cbb4cfa37d0dd52225edf6fc3544f3108d2040518c737a4665eb40b9a611"
+        },
+        {
+            "date": 1750626234356,
+            "name": "/Users/outcasts/Documents/out.time/backend/logs/error-2025-06-23.log",
+            "hash": "a7812fbbe7c411f6ff79bba78cc4fe25966cd5c1916df472eda159b1c5007d3a"
+        },
+        {
+            "date": 1751037895535,
+            "name": "/Users/outcasts/Documents/out.time/backend/logs/error-2025-06-27.log",
+            "hash": "047d52ee31029838b65222d773f4ed591b1e3a0a23f3431b3e0c14526430b6c0"
+        },
+        {
+            "date": 1751062007560,
+            "name": "/Users/outcasts/Documents/out.time/backend/logs/error-2025-06-28.log",
+            "hash": "e244ed63d7ef0470d4e240c9e8a6ba09adb38b8a9085aa48ea325bc268c0f8a2"
+        }
+    ],
+    "hashType": "sha256"
+}

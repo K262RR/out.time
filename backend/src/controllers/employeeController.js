@@ -56,17 +56,16 @@ class EmployeeController {
         employees: employees.map(emp => ({
           id: emp.id,
           name: emp.name,
-          telegramId: emp.telegram_id,
-          isActive: emp.is_active,
+          telegramId: emp.telegramId,
+          isActive: emp.isActive,
           createdAt: emp.created_at,
           // Данные за сегодня
-          todayStartTime: emp.start_time,
-          todayEndTime: emp.end_time,
-          todayStatus: emp.status || 'not_started',
-          todayReport: emp.today_report ? {
-            content: emp.today_report,
-            hasReport: true
-          } : null
+          todayStartTime: emp.todayStartTime,
+          todayEndTime: emp.todayEndTime,
+          todayStatus: emp.todayStatus,
+          hasSubmittedReportToday: emp.hasSubmittedReportToday,
+          todayReportContent: emp.todayReportContent,
+          todayWorkDuration: emp.todayWorkDuration
         }))
       });
 

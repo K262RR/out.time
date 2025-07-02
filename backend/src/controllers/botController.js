@@ -214,6 +214,47 @@ class BotController {
       });
     }
   }
+
+  // Обновление настроек бота
+  static async updateSettings(req, res) {
+    try {
+      const { telegram_id, settings } = req.body;
+
+      if (!telegram_id || !settings) {
+        return res.status(400).json({
+          success: false,
+          error: 'Telegram ID и настройки обязательны'
+        });
+      }
+
+      const Employee = require('../models/Employee');
+      const employee = await Employee.findByTelegramId(telegram_id);
+      
+      if (!employee) {
+        return res.status(404).json({
+          success: false,
+          error: 'Сотрудник не найден'
+        });
+      }
+
+      // Обновляем настройки
+      await employee.updateSettings(settings);
+
+      res.json({
+        success: true,
+        message: 'Настройки успешно обновлены',
+        settings: employee.settings
+      });
+
+    } catch (error) {
+      console.error('Ошибка обновления настроек:', error.message);
+      
+      res.status(500).json({
+        success: false,
+        error: 'Ошибка сервера при обновлении настроек'
+      });
+    }
+  }
 }
 
 module.exports = BotController; 

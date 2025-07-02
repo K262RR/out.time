@@ -1,4 +1,4 @@
-const { statusKeyboard } = require('../keyboards/inline');
+import { statusKeyboard } from '../keyboards/inline.js';
 
 async function statusHandler(ctx) {
   try {
@@ -91,4 +91,4 @@ async function statusHandler(ctx) {
   }
 }
 
-module.exports = statusHandler; 
+export default statusHandler; 

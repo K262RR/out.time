@@ -5,7 +5,7 @@ import Sidebar from './Sidebar'
 
 const Layout = () => {
   return (
-    <div className="flex h-screen bg-[#F8F8F8] p-[10px] gap-[23px]">
+    <div className="flex h-screen bg-gray-50 p-[10px] gap-[23px]">
       {/* Sidebar */}
       <Sidebar />
       

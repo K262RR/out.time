@@ -1,7 +1,10 @@
-const cron = require('node-cron');
-const { sendMorningNotification, sendEveningNotification } = require('../bot');
-const Employee = require('../models/Employee');
-const TimeRecord = require('../models/TimeRecord');
+import cron from 'node-cron';
+import { sendMorningNotification, sendEveningNotification, bot } from '../bot/index.js';
+import Employee from '../models/Employee.js';
+import TimeRecord from '../models/TimeRecord.js';
+import { createBackup } from '../../scripts/backup.js';
+import logger from '../config/logger.js';
+import Invite from '../models/Invite.js';
 
 class CronService {
   static init() {
@@ -39,11 +42,20 @@ class CronService {
       timezone: "Europe/Moscow"
     });
 
+    // Создание резервной копии базы данных (каждый день в 3:00 AM)
+    cron.schedule('0 3 * * *', async () => {
+      console.log('💾 Создание резервной копии базы данных...');
+      await this.createDatabaseBackup();
+    }, {
+      timezone: "Europe/Moscow"
+    });
+
     console.log('✅ Планировщик уведомлений запущен');
     console.log('   📅 Утренние уведомления: 9:00 (пн-пт)');
     console.log('   📅 Вечерние уведомления: 18:00 (пн-пт)');
     console.log('   📅 Напоминания опоздавшим: 10:00 (пн-пт)');
     console.log('   📅 Очистка приглашений: 00:00 (ежедневно)');
+    console.log('   📅 Резервное копирование: 3:00 (ежедневно)');
   }
 
   static async sendMorningNotifications() {
@@ -136,7 +148,6 @@ class CronService {
           
           if (!timeRecord || !timeRecord.start_time) {
             // Отправляем напоминание
-            const { bot } = require('../bot');
             await bot.telegram.sendMessage(
               employee.telegram_id,
               `⏰ Заметил, что вы еще не отметились на работе.
@@ -176,7 +187,6 @@ class CronService {
 
   static async cleanupExpiredInvites() {
     try {
-      const Invite = require('../models/Invite');
       const deletedInvites = await Invite.cleanupExpired();
       
       console.log(`🧹 Очищено просроченных приглашений: ${deletedInvites.length}`);
@@ -186,30 +196,39 @@ class CronService {
     }
   }
 
-  // Метод для ручного тестирования уведомлений
+  static async createDatabaseBackup() {
+    try {
+      await createBackup();
+      console.log('✅ Резервная копия базы данных создана');
+    } catch (error) {
+      console.error('❌ Ошибка создания резервной копии:', error);
+    }
+  }
+
   static async testNotifications(telegramId) {
     try {
-      console.log(`🧪 Тестирование уведомлений для ${telegramId}...`);
-      
       const employee = await Employee.findByTelegramId(telegramId);
       if (!employee) {
         throw new Error('Сотрудник не найден');
       }
 
-      // Тестируем утреннее уведомление
+      // Тестовое утреннее уведомление
       await sendMorningNotification(telegramId, employee.name);
-      console.log('✅ Утреннее уведомление отправлено');
+      console.log('✅ Тестовое утреннее уведомление отправлено');
 
-      // Ждем 3 секунды и отправляем вечернее
-      setTimeout(async () => {
-        await sendEveningNotification(telegramId, employee.name);
-        console.log('✅ Вечернее уведомление отправлено');
-      }, 3000);
+      // Пауза 5 секунд
+      await new Promise(resolve => setTimeout(resolve, 5000));
 
+      // Тестовое вечернее уведомление
+      await sendEveningNotification(telegramId, employee.name);
+      console.log('✅ Тестовое вечернее уведомление отправлено');
+
+      return true;
     } catch (error) {
-      console.error('❌ Ошибка тестирования уведомлений:', error);
+      console.error('❌ Ошибка отправки тестовых уведомлений:', error);
+      throw error;
     }
   }
 }
 
-module.exports = CronService; 
+export default CronService; 

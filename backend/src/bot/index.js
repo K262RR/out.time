@@ -1,16 +1,61 @@
-const { Telegraf } = require('telegraf');
-const fetch = require('node-fetch');
-const startHandler = require('./handlers/startHandler');
-const reportHandler = require('./handlers/reportHandler');
-const statusHandler = require('./handlers/statusHandler');
-const { morningKeyboard, eveningKeyboard } = require('./keyboards/inline');
+import { Telegraf } from 'telegraf';
+// Используем встроенный fetch или импортируем node-fetch
+let fetch;
+if (typeof globalThis.fetch === 'undefined') {
+  fetch = require('node-fetch');
+} else {
+  fetch = globalThis.fetch;
+}
+import startHandler from './handlers/startHandler.js';
+import reportHandler from './handlers/reportHandler.js';
+import statusHandler from './handlers/statusHandler.js';
+import { morningKeyboard, eveningKeyboard } from './keyboards/inline.js';
 
 if (!process.env.BOT_TOKEN) {
   console.error('❌ BOT_TOKEN не установлен в переменных окружения');
   process.exit(1);
 }
 
-const bot = new Telegraf(process.env.BOT_TOKEN);
+const bot = new Telegraf(process.env.BOT_TOKEN, {
+  telegram: {
+    // Принудительно используем HTTPS
+    apiRoot: 'https://api.telegram.org',
+    webhookReply: true,
+  }
+});
+
+// Настройка webhook в production
+if (process.env.NODE_ENV === 'production') {
+  // Проверяем наличие HTTPS
+  if (!process.env.DOMAIN || !process.env.DOMAIN.startsWith('https://')) {
+    console.error('❌ DOMAIN должен использовать HTTPS в production');
+    process.exit(1);
+  }
+
+  const webhookUrl = `${process.env.DOMAIN}/bot/webhook`;
+  bot.telegram.setWebhook(webhookUrl, {
+    drop_pending_updates: true,
+    allowed_updates: ['message', 'callback_query'],
+    secret_token: process.env.WEBHOOK_SECRET // Дополнительная защита webhook
+  }).then(() => {
+    console.log('✅ Webhook успешно установлен:', webhookUrl);
+  }).catch(err => {
+    console.error('❌ Ошибка установки webhook:', err);
+    process.exit(1);
+  });
+}
+
+// Middleware для проверки webhook secret в production
+if (process.env.NODE_ENV === 'production') {
+  bot.use((ctx, next) => {
+    const webhookSecret = ctx.request?.headers['x-telegram-bot-api-secret-token'];
+    if (webhookSecret !== process.env.WEBHOOK_SECRET) {
+      console.warn('⚠️ Попытка доступа к webhook с неверным secret token');
+      return ctx.reply('Unauthorized');
+    }
+    return next();
+  });
+}
 
 // Middleware для логирования
 bot.use((ctx, next) => {
@@ -102,13 +147,23 @@ bot.action('no_remind', async (ctx) => {
 // Обработчик текстовых сообщений (отчеты)
 bot.on('text', reportHandler);
 
+// Обновляем API URL для использования HTTPS
+const getApiUrl = () => {
+  const baseUrl = process.env.API_BASE_URL || 'http://localhost:3000';
+  // В production всегда используем HTTPS
+  if (process.env.NODE_ENV === 'production' && baseUrl.startsWith('http://')) {
+    return baseUrl.replace('http://', 'https://');
+  }
+  return baseUrl;
+};
+
 // Функции обработки действий
 async function handleWorkStart(ctx, status) {
   try {
     const telegramId = ctx.from.id;
     
-    // Отправляем запрос к API
-    const response = await fetch(`${process.env.API_BASE_URL || 'http://localhost:3000'}/api/bot/start-day`, {
+    // Отправляем запрос к API используя HTTPS в production
+    const response = await fetch(`${getApiUrl()}/api/bot/start-day`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -168,7 +223,7 @@ bot.action(['sick_day', 'vacation_day', 'other_absence'], async (ctx) => {
     const telegramId = ctx.from.id;
     const status = statusMap[ctx.callbackQuery.data];
     
-    const response = await fetch(`${process.env.API_BASE_URL || 'http://localhost:3000'}/api/bot/start-day`, {
+    const response = await fetch(`${getApiUrl()}/api/bot/start-day`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -193,42 +248,27 @@ bot.action(['sick_day', 'vacation_day', 'other_absence'], async (ctx) => {
   }
 });
 
-// Функция для отправки утренних уведомлений
+// Функции для отправки уведомлений
 async function sendMorningNotification(telegramId, employeeName) {
   try {
-    await bot.telegram.sendMessage(
-      telegramId,
-      `🌅 Доброе утро, ${employeeName}!
-Начинаем рабочий день?`,
-      morningKeyboard
+    await bot.telegram.sendMessage(telegramId, 
+      `Доброе утро, ${employeeName}! 👋\nГотовы начать рабочий день?`,
+      { reply_markup: morningKeyboard }
     );
   } catch (error) {
-    console.error(`Ошибка отправки утреннего уведомления ${telegramId}:`, error);
+    console.error('Ошибка отправки утреннего уведомления:', error);
   }
 }
 
-// Функция для отправки вечерних уведомлений
 async function sendEveningNotification(telegramId, employeeName) {
   try {
-    await bot.telegram.sendMessage(
-      telegramId,
-      `🌆 ${employeeName}, рабочий день подходит к концу!
-
-Расскажите, чем занимались сегодня:
-1️⃣ Что сделали?
-2️⃣ Были ли проблемы?
-
-Жду ваш отчет 👇`,
-      eveningKeyboard
+    await bot.telegram.sendMessage(telegramId,
+      `${employeeName}, рабочий день подходит к концу! 🌆\nКак прошел ваш день?`,
+      { reply_markup: eveningKeyboard }
     );
   } catch (error) {
-    console.error(`Ошибка отправки вечернего уведомления ${telegramId}:`, error);
+    console.error('Ошибка отправки вечернего уведомления:', error);
   }
 }
 
-// Экспорт бота и функций уведомлений
-module.exports = {
-  bot,
-  sendMorningNotification,
-  sendEveningNotification
-}; 
+export { bot, sendMorningNotification, sendEveningNotification }; 

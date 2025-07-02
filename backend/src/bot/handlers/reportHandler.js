@@ -86,4 +86,4 @@ async function reportHandler(ctx) {
   }
 }
 
-module.exports = reportHandler; 
+export default reportHandler; 

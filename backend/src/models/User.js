@@ -4,7 +4,7 @@ const bcrypt = require('bcrypt');
 class User {
   static async create(data) {
     // Hash password
-    const saltRounds = 10;
+    const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 10;
     const passwordHash = await bcrypt.hash(data.password, saltRounds);
     
     const query = `
@@ -55,7 +55,7 @@ class User {
   }
 
   static async updatePassword(id, newPassword) {
-    const saltRounds = 10;
+    const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 10;
     const passwordHash = await bcrypt.hash(newPassword, saltRounds);
     
     const query = `

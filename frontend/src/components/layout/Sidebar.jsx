@@ -6,7 +6,7 @@ const DashboardIcon = ({ isActive }) => (
   <svg className="w-[24px] h-[24px]" fill="none" viewBox="0 0 20 20">
     <path
       d="M1 4.6C1 2.61 2.61004 1 4.60004 1C6.59004 1 8.20001 2.61 8.20001 4.6C8.20001 6.59 6.59004 8.2 4.60004 8.2C2.62004 8.2 1 6.59 1 4.6ZM15.4 8.2C17.39 8.2 19 6.59 19 4.6C19 2.61 17.39 1 15.4 1C13.41 1 11.8 2.61 11.8 4.6C11.8 6.59 13.42 8.2 15.4 8.2ZM4.60004 19C6.59004 19 8.20001 17.39 8.20001 15.4C8.20001 13.41 6.59004 11.8 4.60004 11.8C2.61004 11.8 1 13.41 1 15.4C1 17.39 2.62004 19 4.60004 19ZM15.4 19C17.39 19 19 17.39 19 15.4C19 13.41 17.39 11.8 15.4 11.8C13.41 11.8 11.8 13.41 11.8 15.4C11.8 17.39 13.42 19 15.4 19Z"
-      stroke={isActive ? '#101010' : '#727272'}
+      className={`transition-all duration-200 ${isActive ? 'stroke-gray-900' : 'stroke-gray-500'}`}
       strokeWidth="1.5"
     />
   </svg>
@@ -15,16 +15,16 @@ const DashboardIcon = ({ isActive }) => (
 // Иконка для Сотрудников
 const EmployeesIcon = ({ isActive }) => (
   <svg className="w-[24px] h-[24px]" fill="none" viewBox="0 0 24 24">
-    <circle cx="12" cy="7" r="4" stroke={isActive ? '#101010' : '#727272'} strokeWidth="1.5" />
-    <path d="M4 21V20C4 16.6863 6.68629 14 10 14H14C17.3137 14 20 16.6863 20 20V21" stroke={isActive ? '#101010' : '#727272'} strokeWidth="1.5" />
+    <circle cx="12" cy="7" r="4" className={`transition-all duration-200 ${isActive ? 'stroke-gray-900' : 'stroke-gray-500'}`} strokeWidth="1.5" />
+    <path d="M4 21V20C4 16.6863 6.68629 14 10 14H14C17.3137 14 20 16.6863 20 20V21" className={`transition-all duration-200 ${isActive ? 'stroke-gray-900' : 'stroke-gray-500'}`} strokeWidth="1.5" />
   </svg>
 );
 
 // Иконка для Отчетов
 const ReportsIcon = ({ isActive }) => (
   <svg className="w-[24px] h-[24px]" fill="none" viewBox="0 0 24 24">
-    <path d="M3 8.5C3 6.567 4.567 5 6.5 5H17.5C19.433 5 21 6.567 21 8.5V15.5C21 17.433 19.433 19 17.5 19H6.5C4.567 19 3 17.433 3 15.5V8.5Z" stroke={isActive ? '#101010' : '#727272'} strokeWidth="1.5" />
-    <path d="M3.5 15.5L6.82708 13.6516C7.53658 13.2575 8.41396 13.3312 9.04775 13.8382L9.39792 14.1183C10.0587 14.6469 10.9776 14.7044 11.697 14.259C13.7451 12.9911 17.9914 10.3625 21 8.5" stroke={isActive ? '#101010' : '#727272'} strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M3 8.5C3 6.567 4.567 5 6.5 5H17.5C19.433 5 21 6.567 21 8.5V15.5C21 17.433 19.433 19 17.5 19H6.5C4.567 19 3 17.433 3 15.5V8.5Z" className={`transition-all duration-200 ${isActive ? 'stroke-gray-900' : 'stroke-gray-500'}`} strokeWidth="1.5" />
+    <path d="M3.5 15.5L6.82708 13.6516C7.53658 13.2575 8.41396 13.3312 9.04775 13.8382L9.39792 14.1183C10.0587 14.6469 10.9776 14.7044 11.697 14.259C13.7451 12.9911 17.9914 10.3625 21 8.5" className={`transition-all duration-200 ${isActive ? 'stroke-gray-900' : 'stroke-gray-500'}`} strokeWidth="1.5" strokeLinecap="round" />
   </svg>
 );
 
@@ -62,8 +62,8 @@ const Sidebar = () => {
   ]
 
   return (
-    <div className="bg-white w-[256px] rounded-[19px] flex flex-col justify-between p-[12px]">
-      <div>
+    <aside className="bg-white rounded-[19px] w-[271px] p-[13px] flex flex-col flex-shrink-0">
+      <div className="flex-grow">
         <div className="flex items-center mb-[30px]">
           <img src="/Logo.svg" alt="Out Time Logo" className="w-[48px] h-[48px]" />
           <img src="/LogoText.svg" alt="Out Time" className="ml-[12px]" />
@@ -80,8 +80,8 @@ const Sidebar = () => {
                   className={`
                     flex items-center px-[12px] py-[12px] rounded-[16px] text-[14px] font-semibold transition-colors duration-200
                     ${isActive
-                        ? 'bg-[#f8f8f8] text-black'
-                        : 'text-[#727272] hover:bg-gray-100'
+                        ? 'bg-gray-100 text-gray-900'
+                        : 'text-gray-500 hover:bg-gray-100'
                     }
                   `}
                 >
@@ -120,7 +120,7 @@ const Sidebar = () => {
           Часто задаваемые вопросы
         </NavLink>
       </div>
-    </div>
+    </aside>
   )
 }
 

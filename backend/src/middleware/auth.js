@@ -1,5 +1,6 @@
 const { verifyToken } = require('../utils/jwt');
 const User = require('../models/User');
+const TokenBlacklist = require('../models/TokenBlacklist');
 
 const authenticateToken = async (req, res, next) => {
   try {
@@ -13,7 +14,17 @@ const authenticateToken = async (req, res, next) => {
     }
 
     // Проверяем токен
-    const decoded = verifyToken(token);
+    const decoded = verifyToken(token, 'access');
+    
+    // Проверяем токен в blacklist
+    if (decoded.jti) {
+      const isBlacklisted = await TokenBlacklist.isTokenBlacklisted(decoded.jti);
+      if (isBlacklisted) {
+        return res.status(401).json({ 
+          error: 'Токен отозван' 
+        });
+      }
+    }
     
     // Проверяем существование пользователя
     const user = await User.findById(decoded.userId);
@@ -36,7 +47,7 @@ const authenticateToken = async (req, res, next) => {
     console.error('Ошибка авторизации:', error.message);
     
     if (error.message === 'Недействительный токен') {
-      return res.status(403).json({ 
+      return res.status(401).json({ 
         error: 'Недействительный или истекший токен' 
       });
     }
